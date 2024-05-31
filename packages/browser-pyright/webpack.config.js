@@ -1,6 +1,6 @@
 /**
  * webpack.config-cli.js
- * Copyright: Microsoft 2018
+ * Copyright: Microsoft 2018, Posit 2024
  */
 
 const path = require('path');
