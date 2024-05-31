@@ -575,6 +575,12 @@ test('Protocol49', () => {
     TestUtils.validateResults(analysisResults, 0);
 });
 
+test('Protocol50', () => {
+    const analysisResults = TestUtils.typeAnalyzeSampleFiles(['protocol50.py']);
+
+    TestUtils.validateResults(analysisResults, 0);
+});
+
 test('ProtocolExplicit1', () => {
     const analysisResults = TestUtils.typeAnalyzeSampleFiles(['protocolExplicit1.py']);
 
@@ -736,7 +742,7 @@ test('TypedDictInline1', () => {
     configOptions.diagnosticRuleSet.enableExperimentalFeatures = true;
 
     const analysisResults = TestUtils.typeAnalyzeSampleFiles(['typedDictInline1.py'], configOptions);
-    TestUtils.validateResults(analysisResults, 8);
+    TestUtils.validateResults(analysisResults, 9);
 });
 
 test('ClassVar1', () => {
@@ -754,7 +760,7 @@ test('ClassVar2', () => {
 test('ClassVar3', () => {
     const analysisResults = TestUtils.typeAnalyzeSampleFiles(['classVar3.py']);
 
-    TestUtils.validateResults(analysisResults, 10);
+    TestUtils.validateResults(analysisResults, 13);
 });
 
 test('ClassVar4', () => {

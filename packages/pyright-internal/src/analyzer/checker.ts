@@ -3918,8 +3918,7 @@ export class Checker extends ParseTreeWalker {
                     varType,
                     filterType,
                     filterType,
-                    isInstanceCheck,
-                    /* isTypeIsCheck */ false
+                    isInstanceCheck
                 );
                 const filterIsSubclass = isIsinstanceFilterSubclass(
                     this._evaluator,
@@ -5029,11 +5028,27 @@ export class Checker extends ParseTreeWalker {
                     ];
 
                     if (newMemberTypeResult) {
-                        this._evaluator.validateCallArguments(errorNode, argList, newMemberTypeResult);
+                        this._evaluator.validateCallArguments(
+                            errorNode,
+                            argList,
+                            newMemberTypeResult,
+                            /* typeVarContext */ undefined,
+                            /* skipUnknownArgCheck */ undefined,
+                            /* inferenceContext */ undefined,
+                            /* signatureTracker */ undefined
+                        );
                     }
 
                     if (initMemberTypeResult) {
-                        this._evaluator.validateCallArguments(errorNode, argList, initMemberTypeResult);
+                        this._evaluator.validateCallArguments(
+                            errorNode,
+                            argList,
+                            initMemberTypeResult,
+                            /* typeVarContext */ undefined,
+                            /* skipUnknownArgCheck */ undefined,
+                            /* inferenceContext */ undefined,
+                            /* signatureTracker */ undefined
+                        );
                     }
                 }
             } else if (declaredValueType) {

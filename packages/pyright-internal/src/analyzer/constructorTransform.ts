@@ -16,7 +16,7 @@ import { DiagnosticRule } from '../common/diagnosticRules';
 import { LocMessage } from '../localization/localize';
 import { ArgumentCategory, ExpressionNode, ParameterCategory } from '../parser/parseNodes';
 import { createFunctionFromConstructor } from './constructors';
-import { getParameterListDetails, ParameterSource } from './parameterUtils';
+import { getParameterListDetails, ParameterKind } from './parameterUtils';
 import { Symbol, SymbolFlags } from './symbol';
 import { FunctionArgument, FunctionResult, TypeEvaluator } from './typeEvaluatorTypes';
 import {
@@ -40,6 +40,7 @@ import {
     lookUpObjectMember,
     makeInferenceContext,
     MemberAccessFlags,
+    UniqueSignatureTracker,
 } from './typeUtils';
 import { TypeVarContext } from './typeVarContext';
 
@@ -56,10 +57,11 @@ export function applyConstructorTransform(
     errorNode: ExpressionNode,
     argList: FunctionArgument[],
     classType: ClassType,
-    result: FunctionResult
+    result: FunctionResult,
+    signatureTracker: UniqueSignatureTracker | undefined
 ): FunctionResult {
     if (classType.details.fullName === 'functools.partial') {
-        return applyPartialTransform(evaluator, errorNode, argList, result);
+        return applyPartialTransform(evaluator, errorNode, argList, result, signatureTracker);
     }
 
     // By default, return the result unmodified.
@@ -71,7 +73,8 @@ function applyPartialTransform(
     evaluator: TypeEvaluator,
     errorNode: ExpressionNode,
     argList: FunctionArgument[],
-    result: FunctionResult
+    result: FunctionResult,
+    signatureTracker: UniqueSignatureTracker | undefined
 ): FunctionResult {
     // We assume that the normal return result is a functools.partial class instance.
     if (!isClassInstance(result.returnType) || result.returnType.details.fullName !== 'functools.partial') {
@@ -92,7 +95,11 @@ function applyPartialTransform(
         return result;
     }
 
-    const origFunctionTypeResult = evaluator.getTypeOfArgument(argList[0]);
+    const origFunctionTypeResult = evaluator.getTypeOfArgument(
+        argList[0],
+        /* inferenceContext */ undefined,
+        signatureTracker
+    );
     let origFunctionType = origFunctionTypeResult.type;
     const origFunctionTypeConcrete = evaluator.makeTopLevelTypeVarsConcrete(origFunctionType);
 
@@ -239,7 +246,7 @@ function applyPartialTransformToFunction(
             // Does this positional argument map to a positional parameter?
             if (
                 argIndex >= paramListDetails.params.length ||
-                paramListDetails.params[argIndex].source === ParameterSource.KeywordOnly
+                paramListDetails.params[argIndex].kind === ParameterKind.Keyword
             ) {
                 if (paramListDetails.argsIndex !== undefined) {
                     const paramType = FunctionType.getEffectiveParameterType(
@@ -322,8 +329,7 @@ function applyPartialTransformToFunction(
             }
         } else {
             const matchingParam = paramListDetails.params.find(
-                (paramInfo) =>
-                    paramInfo.param.name === arg.name?.value && paramInfo.source !== ParameterSource.PositionOnly
+                (paramInfo) => paramInfo.param.name === arg.name?.value && paramInfo.kind !== ParameterKind.Positional
             );
 
             if (!matchingParam) {
