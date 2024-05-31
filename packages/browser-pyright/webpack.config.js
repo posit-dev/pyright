@@ -74,9 +74,9 @@ module.exports = (_, { mode }) => {
             new NormalModuleReplacementPlugin(/^v8$/, __dirname + '/src/v8-shim.ts'),
             new DefinePlugin({
                 // We use this to get the current URL to launch a Worker().
-                '__filename': 'self.location.href',
+                __filename: 'self.location.href',
             }),
         ],
-        watch: true,
+        watch: mode === 'development',
     };
 };
