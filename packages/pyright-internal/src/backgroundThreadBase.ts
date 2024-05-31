@@ -6,7 +6,7 @@
  * base class for background worker thread.
  */
 
-import { MessagePort, parentPort, TransferListItem } from 'worker_threads';
+import { MessagePort, parentPort, TransferListItem } from './worker_threads_shim';
 
 import { CacheManager } from './analyzer/cacheManager';
 import { OperationCanceledException, setCancellationFolderName } from './common/cancellationUtils';
@@ -15,7 +15,7 @@ import { ConsoleInterface, LogLevel } from './common/console';
 import { Disposable, isThenable } from './common/core';
 import * as debug from './common/debug';
 import { PythonVersion } from './common/pythonVersion';
-import { createFromRealFileSystem, RealTempFile } from './common/realFileSystem';
+import { createFromRealFileSystem, RealTempFile } from './common/testFileSystemShim';
 import { ServiceKeys } from './common/serviceKeys';
 import { ServiceProvider } from './common/serviceProvider';
 import './common/serviceProviderExtensions';

@@ -7,7 +7,7 @@
  * Class that represents a single Python source or stub file.
  */
 
-import { isMainThread } from 'worker_threads';
+import { isMainThread } from '../worker_threads_shim';
 
 import { OperationCanceledException } from '../common/cancellationUtils';
 import { appendArray } from '../common/collectionUtils';

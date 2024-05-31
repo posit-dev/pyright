@@ -8,7 +8,7 @@
 
 import { Connection, ConnectionOptions } from 'vscode-languageserver';
 import { createConnection } from 'vscode-languageserver/node';
-import { isMainThread } from 'worker_threads';
+import { isMainThread } from './worker_threads_shim';
 
 import { getCancellationStrategyFromArgv } from './common/fileBasedCancellationUtils';
 

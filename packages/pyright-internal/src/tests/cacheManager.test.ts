@@ -8,7 +8,7 @@
 
 import assert from 'assert';
 
-import { Worker } from 'worker_threads';
+import { Worker } from '../worker_threads_shim';
 import { CacheManager, CacheOwner } from '../analyzer/cacheManager';
 
 test('basic', () => {

@@ -33,7 +33,7 @@ import { FullAccessHost } from './common/fullAccessHost';
 import { Host } from './common/host';
 import { ServerSettings } from './common/languageServerInterface';
 import { ProgressReporter } from './common/progressReporter';
-import { RealTempFile, WorkspaceFileWatcherProvider, createFromRealFileSystem } from './common/realFileSystem';
+import { RealTempFile, WorkspaceFileWatcherProvider, createFromRealFileSystem } from './common/testFileSystemShim';
 import { ServiceProvider } from './common/serviceProvider';
 import { createServiceProvider } from './common/serviceProviderExtensions';
 import { Uri } from './common/uri/uri';

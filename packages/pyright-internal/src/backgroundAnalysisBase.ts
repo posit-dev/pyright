@@ -7,7 +7,7 @@
  */
 
 import { CancellationToken } from 'vscode-languageserver';
-import { MessageChannel, MessagePort, Worker, parentPort, threadId, workerData } from 'worker_threads';
+import { MessageChannel, MessagePort, Worker, parentPort, threadId, workerData } from './worker_threads_shim';
 
 import { AnalysisCompleteCallback, AnalysisResults, analyzeProgram, nullCallback } from './analyzer/analysis';
 import { BackgroundAnalysisProgram, InvalidatedReason } from './analyzer/backgroundAnalysisProgram';

@@ -30,7 +30,7 @@ import { FileDiagnostics } from './common/diagnosticSink';
 import { FullAccessHost } from './common/fullAccessHost';
 import { combinePaths, normalizePath } from './common/pathUtils';
 import { PythonVersion } from './common/pythonVersion';
-import { RealTempFile, createFromRealFileSystem } from './common/realFileSystem';
+import { RealTempFile, createFromRealFileSystem } from './common/testFileSystemShim';
 import { ServiceProvider } from './common/serviceProvider';
 import { createServiceProvider } from './common/serviceProviderExtensions';
 import { Range, isEmptyRange } from './common/textRange';

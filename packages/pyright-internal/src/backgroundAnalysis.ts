@@ -6,7 +6,7 @@
  * run analyzer from background thread
  */
 
-import { Worker } from 'worker_threads';
+import { Worker } from './worker_threads_shim';
 
 import { ImportResolver } from './analyzer/importResolver';
 import { BackgroundAnalysisBase, BackgroundAnalysisRunnerBase } from './backgroundAnalysisBase';

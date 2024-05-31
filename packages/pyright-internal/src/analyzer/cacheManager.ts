@@ -9,7 +9,7 @@
  */
 
 import type { HeapInfo } from 'v8';
-import { Worker } from 'worker_threads';
+import { Worker } from '../worker_threads_shim';
 import { AnalysisRequest } from '../backgroundAnalysisBase';
 import { ConsoleInterface } from '../common/console';
 import { fail } from '../common/debug';
