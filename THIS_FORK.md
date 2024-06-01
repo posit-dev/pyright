@@ -94,6 +94,9 @@ cd packages/browser-pyright
 npm run build
 ```
 
+Also check if the versions of dependencies in `browser-pyright/packages.json` match the versions in `pyright-internal/packages.json`. If they don't, update them and then run `npm install`.
+
+
 If this works, then you can test if it works from the other end. (Note that it would be good to add automated tests of functionality to this repository.) If so, you can push the new merged commit to GitHub.
 
 If there are any problems at this point, then you may need to make some fixes. It is possible that some files have added new imports from the shimmed files described above. Those can be easily fixed:
