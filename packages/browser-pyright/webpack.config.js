@@ -34,21 +34,13 @@ module.exports = (_, { mode }) => {
             extensions: ['.ts', '.js'],
             alias: tsconfigResolveAliases('tsconfig.json'),
             fallback: {
-                // There's a lot of code we're pulling in that uses NodeJS.
-                //  Much of it should be cut out by refactoring but for now we hack it out.
-
-                // At least TestFileSystem, which perhaps we should replace
-                // to avoid buffer polyfill
                 buffer: require.resolve('buffer/'),
-                // pythonPathUtils.ts but shouldn't be used as it execs python, configOptions.ts but we avoid reading from disk
                 child_process: false,
-                // Falls back to web crypto.
                 crypto: false,
                 // Needs at least path.sep in pathUtils.ts, pathValidation.ts etc.
                 path: require.resolve('path-browserify'),
                 // TOML parsing which we don't use
                 stream: false,
-                // fileBasedCancellationUtils (we've removed the RealFileSystem)
                 fs: false,
                 os: false,
 
