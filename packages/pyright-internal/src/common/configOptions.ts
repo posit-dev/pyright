@@ -48,10 +48,14 @@ export class ExecutionEnvironment {
     // Default to no extra paths.
     extraPaths: Uri[] = [];
 
+    // Diagnostic rules with overrides.
+    diagnosticRuleSet: DiagnosticRuleSet;
+
     // Default to "." which indicates every file in the project.
     constructor(
         name: string,
         root: Uri,
+        defaultDiagRuleSet: DiagnosticRuleSet,
         defaultPythonVersion: PythonVersion | undefined,
         defaultPythonPlatform: string | undefined,
         defaultExtraPaths: Uri[] | undefined
@@ -61,6 +65,7 @@ export class ExecutionEnvironment {
         this.pythonVersion = defaultPythonVersion ?? latestStablePythonVersion;
         this.pythonPlatform = defaultPythonPlatform;
         this.extraPaths = Array.from(defaultExtraPaths ?? []);
+        this.diagnosticRuleSet = { ...defaultDiagRuleSet };
     }
 }
 
@@ -110,6 +115,9 @@ export interface DiagnosticRuleSet {
 
     // Enable support for type: ignore comments?
     enableTypeIgnoreComments: boolean;
+
+    // Use tagged hints to identify unreachable code via type analysis?
+    enableReachabilityAnalysis: boolean;
 
     // No longer treat bytearray and memoryview as subclasses of bytes?
     disableBytesTypePromotions: boolean;
@@ -400,6 +408,7 @@ export function getBooleanDiagnosticRules(includeNonOverridable = false) {
         // want to override it in strict mode or support
         // it within pyright comments.
         boolRules.push(DiagnosticRule.enableTypeIgnoreComments);
+        boolRules.push(DiagnosticRule.enableReachabilityAnalysis);
     }
 
     return boolRules;
@@ -513,6 +522,7 @@ export function getOffDiagnosticRuleSet(): DiagnosticRuleSet {
         strictParameterNoneValue: true,
         enableExperimentalFeatures: false,
         enableTypeIgnoreComments: true,
+        enableReachabilityAnalysis: false,
         deprecateTypingAliases: false,
         disableBytesTypePromotions: false,
         reportGeneralTypeIssues: 'none',
@@ -615,6 +625,7 @@ export function getBasicDiagnosticRuleSet(): DiagnosticRuleSet {
         strictParameterNoneValue: true,
         enableExperimentalFeatures: false,
         enableTypeIgnoreComments: true,
+        enableReachabilityAnalysis: true,
         deprecateTypingAliases: false,
         disableBytesTypePromotions: false,
         reportGeneralTypeIssues: 'error',
@@ -717,6 +728,7 @@ export function getStandardDiagnosticRuleSet(): DiagnosticRuleSet {
         strictParameterNoneValue: true,
         enableExperimentalFeatures: false,
         enableTypeIgnoreComments: true,
+        enableReachabilityAnalysis: true,
         deprecateTypingAliases: false,
         disableBytesTypePromotions: false,
         reportGeneralTypeIssues: 'error',
@@ -819,6 +831,7 @@ export function getStrictDiagnosticRuleSet(): DiagnosticRuleSet {
         strictParameterNoneValue: true,
         enableExperimentalFeatures: false,
         enableTypeIgnoreComments: true, // Not overridden by strict mode
+        enableReachabilityAnalysis: true, // Not overridden by strict mode
         deprecateTypingAliases: false,
         disableBytesTypePromotions: true,
         reportGeneralTypeIssues: 'error',
@@ -1070,6 +1083,7 @@ export class ConfigOptions {
         return new ExecutionEnvironment(
             this._getEnvironmentName(),
             this.projectRoot,
+            this.diagnosticRuleSet,
             this.defaultPythonVersion,
             this.defaultPythonPlatform,
             this.defaultExtraPaths
@@ -1122,7 +1136,7 @@ export class ConfigOptions {
         // Read the "include" entry.
         if (configObj.include !== undefined) {
             if (!Array.isArray(configObj.include)) {
-                console.error(`Config "include" entry must must contain an array.`);
+                console.error(`Config "include" entry must contain an array.`);
             } else {
                 this.include = [];
                 const filesList = configObj.include as string[];
@@ -1575,6 +1589,7 @@ export class ConfigOptions {
             const newExecEnv = new ExecutionEnvironment(
                 this._getEnvironmentName(),
                 configDirUri,
+                this.diagnosticRuleSet,
                 this.defaultPythonVersion,
                 this.defaultPythonPlatform,
                 this.defaultExtraPaths
@@ -1651,6 +1666,24 @@ export class ConfigOptions {
                     console.error(`Config executionEnvironments index ${index} pythonPlatform must be a string.`);
                 }
             }
+
+            // Apply overrides from the config file for the boolean overrides.
+            getBooleanDiagnosticRules(/* includeNonOverridable */ true).forEach((ruleName) => {
+                (newExecEnv.diagnosticRuleSet as any)[ruleName] = this._convertBoolean(
+                    envObj[ruleName],
+                    ruleName,
+                    newExecEnv.diagnosticRuleSet[ruleName] as boolean
+                );
+            });
+
+            // Apply overrides from the config file for the diagnostic level overrides.
+            getDiagLevelDiagnosticRules().forEach((ruleName) => {
+                (newExecEnv.diagnosticRuleSet as any)[ruleName] = this._convertDiagnosticLevel(
+                    envObj[ruleName],
+                    ruleName,
+                    newExecEnv.diagnosticRuleSet[ruleName] as DiagnosticLevel
+                );
+            });
 
             return newExecEnv;
         } catch {

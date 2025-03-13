@@ -310,7 +310,14 @@ export abstract class BackgroundAnalysisRunnerBase extends BackgroundThreadBase 
         const console = this.getConsole();
         this.logTracker = new LogTracker(console, `BG(${threadId})`);
 
-        this._program = new Program(this.importResolver, this._configOptions, serviceProvider, this.logTracker);
+        this._program = new Program(
+            this.importResolver,
+            this._configOptions,
+            serviceProvider,
+            this.logTracker,
+            undefined,
+            data.serviceId
+        );
     }
 
     get program(): Program {
@@ -418,7 +425,7 @@ export abstract class BackgroundAnalysisRunnerBase extends BackgroundThreadBase 
 
             case 'updateChainedFileUri': {
                 const { fileUri, chainedUri } = deserialize(msg.data);
-                this.handleUpdateChainedfileUri(fileUri, chainedUri);
+                this.handleUpdateChainedFileUri(fileUri, chainedUri);
                 break;
             }
 
@@ -602,8 +609,8 @@ export abstract class BackgroundAnalysisRunnerBase extends BackgroundThreadBase 
         );
     }
 
-    protected handleUpdateChainedfileUri(fileUri: Uri, chainedfileUri: Uri | undefined) {
-        this.program.updateChainedUri(fileUri, chainedfileUri);
+    protected handleUpdateChainedFileUri(fileUri: Uri, chainedFileUri: Uri | undefined) {
+        this.program.updateChainedUri(fileUri, chainedFileUri);
     }
 
     protected handleSetFileClosed(fileUri: Uri, isTracked: boolean | undefined) {
