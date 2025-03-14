@@ -15,7 +15,9 @@ To build:
 git clone https://github.com/posit-dev/pyright.git
 cd pyright
 npm ci
+(cd packages/pyright-internal && npm ci)
 cd packages/browser-pyright
+npm ci
 npm run build
 ```
 
@@ -84,18 +86,29 @@ Then merge in the most recent tag. If the tag is `1.1.365`, you would run:
 git merge 1.1.365
 ```
 
-Next, update `packages/browser-pyright/packages.json` so that it has the same version number.
+Hopefully this will work without any merge conflicts. If there are merge conflicts, resolve them.
 
-Hopefully this will work without any merge conflicts. If there are merge conflicts, resolve them and then try to build pyright:
-
-```bash
-npm ci
-cd packages/browser-pyright
-npm run build
-```
+Next, update `browser-pyright/packages.json` so that it has the same version number, like 1.1.365.
 
 Also check if the versions of dependencies in `browser-pyright/packages.json` match the versions in `pyright-internal/packages.json`. If they don't, update them and then run `npm install`.
 
+Then copy the `packages-lock.json` from `pyright-internal` to `browser-pyright` and run `npm i`. This is necessary to avoid version mismatches -- if pyright-internal has a specific version of a package in the lockfile, we want to use that same version.
+
+```bash
+cd packages/browser-pyright
+cd ../pyright-internal/packages-lock.json .
+npm i
+```
+
+Now try to build pyright.
+
+```bash
+# Starting in the packages/browser-pyright dir
+(cd ../.. && npm ci)
+(cd ../pyright-internal && npm ci)
+npm ci
+npm run build
+```
 
 If this works, then you can test if it works from the other end. (Note that it would be good to add automated tests of functionality to this repository.) If so, you can push the new merged commit to GitHub.
 
