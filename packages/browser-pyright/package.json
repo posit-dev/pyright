@@ -2,7 +2,7 @@
     "name": "browser-pyright",
     "displayName": "Pyright (browser)",
     "description": "Browser build of Pyright type checker for the Python language",
-    "version": "1.1.381",
+    "version": "1.1.392",
     "license": "MIT",
     "author": {
         "name": "Microsoft Corporation"
@@ -24,12 +24,12 @@
     },
     "devDependencies": {
         "@types/copy-webpack-plugin": "^8.0.1",
-        "@types/node": "^17.0.45",
+        "@types/node": "^22.10.5",
         "copy-webpack-plugin": "^11.0.0",
         "shx": "^0.3.4",
         "ts-loader": "^9.5.1",
         "typescript": "~5.5.4",
-        "webpack": "^5.90.1",
+        "webpack": "^5.97.1",
         "webpack-cli": "^5.1.4"
     },
     "files": [
@@ -41,7 +41,7 @@
         "buffer": "^6.0.3",
         "path-browserify": "^1.0.1",
         "util": "^0.12.5",
-        "vscode-languageserver": "^10.0.0-next.2"
+        "vscode-languageserver": "^10.0.0-next.10"
     },
     "browser": {
         "process": "process/browser"
