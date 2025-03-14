@@ -467,6 +467,18 @@ test('Loop48', () => {
     TestUtils.validateResults(analysisResults, 0);
 });
 
+test('Loop49', () => {
+    const analysisResults = TestUtils.typeAnalyzeSampleFiles(['loop49.py']);
+
+    TestUtils.validateResults(analysisResults, 0);
+});
+
+test('Loop50', () => {
+    const analysisResults = TestUtils.typeAnalyzeSampleFiles(['loop50.py']);
+
+    TestUtils.validateResults(analysisResults, 0);
+});
+
 test('ForLoop1', () => {
     const analysisResults = TestUtils.typeAnalyzeSampleFiles(['forLoop1.py']);
 
@@ -614,7 +626,7 @@ test('TypeAlias4', () => {
 
     configOptions.defaultPythonVersion = pythonVersion3_10;
     const analysisResults3_10 = TestUtils.typeAnalyzeSampleFiles(['typeAlias4.py'], configOptions);
-    TestUtils.validateResults(analysisResults3_10, 11);
+    TestUtils.validateResults(analysisResults3_10, 12);
 });
 
 test('TypeAlias5', () => {

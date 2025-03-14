@@ -37,6 +37,7 @@ import { timingStats } from '../common/timing';
 import { Uri } from '../common/uri/uri';
 import {
     FileSpec,
+    deduplicateFolders,
     getFileSpec,
     getFileSystemEntries,
     hasPythonExtension,
@@ -105,7 +106,7 @@ export function getNextServiceId(name: string) {
 }
 
 export class AnalyzerService {
-    private readonly _options: AnalyzerServiceOptions;
+    protected readonly options: AnalyzerServiceOptions;
     private readonly _backgroundAnalysisProgram: BackgroundAnalysisProgram;
     private readonly _serviceProvider: ServiceProvider;
 
@@ -135,51 +136,51 @@ export class AnalyzerService {
         this._instanceName = instanceName;
 
         this._executionRootUri = Uri.empty();
-        this._options = options;
+        this.options = options;
 
-        this._options.serviceId = this._options.serviceId ?? getNextServiceId(instanceName);
-        this._options.console = options.console || new StandardConsole();
+        this.options.serviceId = this.options.serviceId ?? getNextServiceId(instanceName);
+        this.options.console = options.console || new StandardConsole();
 
         // Create local copy of the given service provider.
         this._serviceProvider = serviceProvider.clone();
 
         // Override the console and the file system if they were explicitly provided.
-        if (this._options.console) {
-            this._serviceProvider.add(ServiceKeys.console, this._options.console);
+        if (this.options.console) {
+            this._serviceProvider.add(ServiceKeys.console, this.options.console);
         }
-        if (this._options.fileSystem) {
-            this._serviceProvider.add(ServiceKeys.fs, this._options.fileSystem);
+        if (this.options.fileSystem) {
+            this._serviceProvider.add(ServiceKeys.fs, this.options.fileSystem);
         }
 
-        this._options.importResolverFactory = options.importResolverFactory ?? AnalyzerService.createImportResolver;
-        this._options.cancellationProvider = options.cancellationProvider ?? new DefaultCancellationProvider();
-        this._options.hostFactory = options.hostFactory ?? (() => new NoAccessHost());
+        this.options.importResolverFactory = options.importResolverFactory ?? AnalyzerService.createImportResolver;
+        this.options.cancellationProvider = options.cancellationProvider ?? new DefaultCancellationProvider();
+        this.options.hostFactory = options.hostFactory ?? (() => new NoAccessHost());
 
-        this._options.configOptions =
+        this.options.configOptions =
             options.configOptions ?? new ConfigOptions(Uri.file(process.cwd(), this._serviceProvider));
-        const importResolver = this._options.importResolverFactory(
+        const importResolver = this.options.importResolverFactory(
             this._serviceProvider,
-            this._options.configOptions,
-            this._options.hostFactory()
+            this.options.configOptions,
+            this.options.hostFactory()
         );
 
         this._backgroundAnalysisProgram =
-            this._options.backgroundAnalysisProgramFactory !== undefined
-                ? this._options.backgroundAnalysisProgramFactory(
-                      this._options.serviceId,
+            this.options.backgroundAnalysisProgramFactory !== undefined
+                ? this.options.backgroundAnalysisProgramFactory(
+                      this.options.serviceId,
                       this._serviceProvider,
-                      this._options.configOptions,
+                      this.options.configOptions,
                       importResolver,
-                      this._options.backgroundAnalysis,
-                      this._options.maxAnalysisTime
+                      this.options.backgroundAnalysis,
+                      this.options.maxAnalysisTime
                   )
                 : new BackgroundAnalysisProgram(
-                      this._options.serviceId,
+                      this.options.serviceId,
                       this._serviceProvider,
-                      this._options.configOptions,
+                      this.options.configOptions,
                       importResolver,
-                      this._options.backgroundAnalysis,
-                      this._options.maxAnalysisTime,
+                      this.options.backgroundAnalysis,
+                      this.options.maxAnalysisTime,
                       /* disableChecker */ undefined
                   );
     }
@@ -193,7 +194,7 @@ export class AnalyzerService {
     }
 
     get cancellationProvider() {
-        return this._options.cancellationProvider!;
+        return this.options.cancellationProvider!;
     }
 
     get librarySearchUrisToWatch() {
@@ -209,7 +210,7 @@ export class AnalyzerService {
     }
 
     get id() {
-        return this._options.serviceId!;
+        return this.options.serviceId!;
     }
 
     setServiceName(instanceName: string) {
@@ -223,7 +224,7 @@ export class AnalyzerService {
         fileSystem?: FileSystem
     ): AnalyzerService {
         const service = new AnalyzerService(instanceName, this._serviceProvider, {
-            ...this._options,
+            ...this.options,
             serviceId,
             backgroundAnalysis,
             skipScanningUserFiles: true,
@@ -295,17 +296,10 @@ export class AnalyzerService {
         const host = this._hostFactory();
         const configOptions = this._getConfigOptions(host, commandLineOptions);
 
-        if (configOptions.pythonPath) {
-            // Make sure we have default python environment set.
-            configOptions.ensureDefaultPythonVersion(host, this._console);
-        }
-
-        configOptions.ensureDefaultPythonPlatform(host, this._console);
-
         this._backgroundAnalysisProgram.setConfigOptions(configOptions);
 
         this._executionRootUri = configOptions.projectRoot;
-        this._applyConfigOptions(host);
+        this.applyConfigOptions(host);
     }
 
     hasSourceFile(uri: Uri): boolean {
@@ -479,21 +473,59 @@ export class AnalyzerService {
     // Forces the service to stop all analysis, discard all its caches,
     // and research for files.
     restart() {
-        this._applyConfigOptions(this._hostFactory());
+        this.applyConfigOptions(this._hostFactory());
 
         this._backgroundAnalysisProgram.restart();
     }
 
+    protected runAnalysis(token: CancellationToken) {
+        // This creates a cancellation source only if it actually gets used.
+        const moreToAnalyze = this._backgroundAnalysisProgram.startAnalysis(token);
+        if (moreToAnalyze) {
+            this._scheduleReanalysis(/* requireTrackedFileUpdate */ false);
+        }
+    }
+
+    protected applyConfigOptions(host: Host) {
+        // Allocate a new import resolver because the old one has information
+        // cached based on the previous config options.
+        const importResolver = this._importResolverFactory(
+            this._serviceProvider,
+            this._backgroundAnalysisProgram.configOptions,
+            host
+        );
+
+        this._backgroundAnalysisProgram.setImportResolver(importResolver);
+
+        if (this._commandLineOptions?.fromLanguageServer || this._configOptions.verboseOutput) {
+            const logLevel = this._configOptions.verboseOutput ? LogLevel.Info : LogLevel.Log;
+            for (const execEnv of this._configOptions.getExecutionEnvironments()) {
+                log(this._console, logLevel, `Search paths for ${execEnv.root || '<default>'}`);
+                const roots = importResolver.getImportRoots(execEnv, /* forLogging */ true);
+                roots.forEach((path) => {
+                    log(this._console, logLevel, `  ${path.toUserVisibleString()}`);
+                });
+            }
+        }
+
+        this._updateLibraryFileWatcher();
+        this._updateConfigFileWatcher();
+        this._updateSourceFileWatchers();
+        this._updateTrackedFileList(/* markFilesDirtyUnconditionally */ true);
+
+        this._scheduleReanalysis(/* requireTrackedFileUpdate */ false);
+    }
+
     private get _console() {
-        return this._options.console!;
+        return this.options.console!;
     }
 
     private get _hostFactory() {
-        return this._options.hostFactory!;
+        return this.options.hostFactory!;
     }
 
     private get _importResolverFactory() {
-        return this._options.importResolverFactory!;
+        return this.options.importResolverFactory!;
     }
 
     private get _program() {
@@ -511,7 +543,7 @@ export class AnalyzerService {
     private get _watchForLibraryChanges() {
         return (
             !!this._commandLineOptions?.languageServerSettings.watchForLibraryChanges &&
-            !!this._options.libraryReanalysisTimeProvider
+            !!this.options.libraryReanalysisTimeProvider
         );
     }
 
@@ -627,6 +659,9 @@ export class AnalyzerService {
                 );
             }
 
+            // Set the configFileSource since we have a config file.
+            configOptions.configFileSource = configFilePath ?? pyprojectFilePath;
+
             // When not in language server mode, command line options override config file options.
             if (!commandLineOptions.fromLanguageServer) {
                 this._applyCommandLineOverrides(configOptions, commandLineOptions.configSettings, projectRoot, false);
@@ -647,10 +682,22 @@ export class AnalyzerService {
 
         // Apply the command line options that are not in the config file. These settings
         // only apply to the language server.
-        this._applyLanguageServerOptions(configOptions, commandLineOptions.languageServerSettings);
+        this._applyLanguageServerOptions(configOptions, projectRoot, commandLineOptions.languageServerSettings);
 
         // Ensure that if no command line or config options were applied, we have some defaults.
         this._ensureDefaultOptions(host, configOptions, projectRoot, executionRoot, commandLineOptions);
+
+        // Once we have defaults, we can then setup the execution environments. Execution enviroments
+        // inherit from the defaults.
+        if (configs) {
+            for (const config of configs) {
+                configOptions.setupExecutionEnvironments(
+                    config.configFileJsonObj,
+                    config.configFileDirUri,
+                    this.serviceProvider.console()
+                );
+            }
+        }
 
         return configOptions;
     }
@@ -794,10 +841,18 @@ export class AnalyzerService {
         if (commandLineOptions.configSettings.verboseOutput !== undefined) {
             configOptions.verboseOutput = commandLineOptions.configSettings.verboseOutput;
         }
+
+        // Ensure default python version and platform. A default should only be picked if
+        // there is a python path however.
+        if (configOptions.pythonPath) {
+            configOptions.ensureDefaultPythonVersion(host, this._console);
+        }
+        configOptions.ensureDefaultPythonPlatform(host, this._console);
     }
 
     private _applyLanguageServerOptions(
         configOptions: ConfigOptions,
+        projectRoot: Uri,
         languageServerOptions: CommandLineLanguageServerOptions
     ) {
         configOptions.disableTaggedHints = !!languageServerOptions.disableTaggedHints;
@@ -827,6 +882,11 @@ export class AnalyzerService {
                 Uri.file(languageServerOptions.pythonPath, this.serviceProvider, /* checkRelative */ true)
             );
         }
+        if (languageServerOptions.venvPath) {
+            if (!configOptions.venvPath) {
+                configOptions.venvPath = projectRoot.resolvePaths(languageServerOptions.venvPath);
+            }
+        }
     }
 
     private _applyCommandLineOverrides(
@@ -840,31 +900,17 @@ export class AnalyzerService {
         }
 
         if (commandLineOptions.extraPaths) {
-            const oldExtraPaths = configOptions.defaultExtraPaths ? [...configOptions.defaultExtraPaths] : [];
             configOptions.ensureDefaultExtraPaths(
                 this.fs,
                 commandLineOptions.autoSearchPaths ?? false,
                 commandLineOptions.extraPaths
             );
-
-            // Execution environments inherit the default extra paths, so we need to update them as well.
-            configOptions.executionEnvironments.forEach((env) => {
-                env.extraPaths = env.extraPaths.filter(
-                    (path) => !oldExtraPaths.some((oldPath) => oldPath.equals(path))
-                );
-                env.extraPaths.push(...configOptions.defaultExtraPaths!);
-            });
         }
 
         if (commandLineOptions.pythonVersion || commandLineOptions.pythonPlatform) {
             configOptions.defaultPythonVersion = commandLineOptions.pythonVersion ?? configOptions.defaultPythonVersion;
             configOptions.defaultPythonPlatform =
                 commandLineOptions.pythonPlatform ?? configOptions.defaultPythonPlatform;
-            // This should also override any of the execution environment settings.
-            configOptions.executionEnvironments.forEach((env) => {
-                env.pythonVersion = commandLineOptions.pythonVersion ?? env.pythonVersion;
-                env.pythonPlatform = commandLineOptions.pythonPlatform ?? env.pythonPlatform;
-            });
         }
 
         if (commandLineOptions.pythonPath) {
@@ -897,6 +943,7 @@ export class AnalyzerService {
         });
 
         configOptions.applyDiagnosticOverrides(commandLineOptions.diagnosticSeverityOverrides);
+        configOptions.applyDiagnosticOverrides(commandLineOptions.diagnosticBooleanOverrides);
 
         // Override the analyzeUnannotatedFunctions setting based on the command-line setting.
         if (commandLineOptions.analyzeUnannotatedFunctions !== undefined) {
@@ -914,6 +961,11 @@ export class AnalyzerService {
             });
         }
 
+        // Override the venvPath based on the command-line setting.
+        if (commandLineOptions.venvPath) {
+            configOptions.venvPath = projectRoot.resolvePaths(commandLineOptions.venvPath);
+        }
+
         const reportDuplicateSetting = (settingName: string, configValue: number | string | boolean) => {
             const settingSource = fromLanguageServer ? 'the client settings' : 'a command-line option';
             this._console.warn(
@@ -926,13 +978,6 @@ export class AnalyzerService {
         // Apply the command-line options if the corresponding
         // item wasn't already set in the config file. Report any
         // duplicates.
-        if (commandLineOptions.venvPath) {
-            if (!configOptions.venvPath) {
-                configOptions.venvPath = projectRoot.resolvePaths(commandLineOptions.venvPath);
-            } else {
-                reportDuplicateSetting('venvPath', configOptions.venvPath.toUserVisibleString());
-            }
-        }
 
         if (commandLineOptions.typeshedPath) {
             if (!configOptions.typeshedPath) {
@@ -1232,7 +1277,7 @@ export class AnalyzerService {
             } else {
                 this._console.error(`Import '${this._typeStubTargetImportName}' not found`);
             }
-        } else if (!this._options.skipScanningUserFiles) {
+        } else if (!this.options.skipScanningUserFiles) {
             let fileList: Uri[] = [];
             this._console.log(`Searching for source files`);
             fileList = this._getFileNamesFromFileSpecs();
@@ -1585,8 +1630,15 @@ export class AnalyzerService {
             this._executionRootUri
         );
 
-        const watchList = this._librarySearchUrisToWatch;
-        if (watchList && watchList.length > 0) {
+        // Make sure the watch list includes extra paths that are not part of user files.
+        // Sometimes, nested folders of the workspace are added as extra paths to import modules as top-level modules.
+        const extraPaths = this._configOptions
+            .getExecutionEnvironments()
+            .map((e) => e.extraPaths.filter((p) => !matchFileSpecs(this._configOptions, p, /* isFile */ false)))
+            .flat();
+
+        const watchList = deduplicateFolders([this._librarySearchUrisToWatch, extraPaths]);
+        if (watchList.length > 0) {
             try {
                 if (this._verboseOutput) {
                     this._console.info(`Adding fs watcher for library directories:\n ${watchList.join('\n')}`);
@@ -1663,7 +1715,7 @@ export class AnalyzerService {
             this._libraryReanalysisTimer = undefined;
 
             const handled = this._backgroundAnalysisProgram?.libraryUpdated();
-            this._options.libraryReanalysisTimeProvider?.libraryUpdated?.(handled);
+            this.options.libraryReanalysisTimeProvider?.libraryUpdated?.(handled);
         }
     }
 
@@ -1675,7 +1727,7 @@ export class AnalyzerService {
 
         this._clearLibraryReanalysisTimer();
 
-        const reanalysisTimeProvider = this._options.libraryReanalysisTimeProvider;
+        const reanalysisTimeProvider = this.options.libraryReanalysisTimeProvider;
         const backOffTimeInMS = reanalysisTimeProvider?.();
         if (!backOffTimeInMS) {
             // We don't support library reanalysis.
@@ -1781,38 +1833,8 @@ export class AnalyzerService {
             const configOptions = this._getConfigOptions(host, this._commandLineOptions!);
             this._backgroundAnalysisProgram.setConfigOptions(configOptions);
 
-            this._applyConfigOptions(host);
+            this.applyConfigOptions(host);
         }
-    }
-
-    private _applyConfigOptions(host: Host) {
-        // Allocate a new import resolver because the old one has information
-        // cached based on the previous config options.
-        const importResolver = this._importResolverFactory(
-            this._serviceProvider,
-            this._backgroundAnalysisProgram.configOptions,
-            host
-        );
-
-        this._backgroundAnalysisProgram.setImportResolver(importResolver);
-
-        if (this._commandLineOptions?.fromLanguageServer || this._configOptions.verboseOutput) {
-            const logLevel = this._configOptions.verboseOutput ? LogLevel.Info : LogLevel.Log;
-            for (const execEnv of this._configOptions.getExecutionEnvironments()) {
-                log(this._console, logLevel, `Search paths for ${execEnv.root || '<default>'}`);
-                const roots = importResolver.getImportRoots(execEnv, /* forLogging */ true);
-                roots.forEach((path) => {
-                    log(this._console, logLevel, `  ${path.toUserVisibleString()}`);
-                });
-            }
-        }
-
-        this._updateLibraryFileWatcher();
-        this._updateConfigFileWatcher();
-        this._updateSourceFileWatchers();
-        this._updateTrackedFileList(/* markFilesDirtyUnconditionally */ true);
-
-        this._scheduleReanalysis(/* requireTrackedFileUpdate */ false);
     }
 
     private _clearReanalysisTimer() {
@@ -1861,14 +1883,12 @@ export class AnalyzerService {
                 this._updateTrackedFileList(/* markFilesDirtyUnconditionally */ false);
             }
 
-            // This creates a cancellation source only if it actually gets used.
+            // Recreate the cancellation token every time we start analysis.
             this._backgroundAnalysisCancellationSource = this.cancellationProvider.createCancellationTokenSource();
-            const moreToAnalyze = this._backgroundAnalysisProgram.startAnalysis(
-                this._backgroundAnalysisCancellationSource.token
-            );
-            if (moreToAnalyze) {
-                this._scheduleReanalysis(/* requireTrackedFileUpdate */ false);
-            }
+
+            // Now that the timer has fired, actually send the message to the BG thread to
+            // start the analysis.
+            this.runAnalysis(this._backgroundAnalysisCancellationSource.token);
         }, timeUntilNextAnalysisInMs);
     }
 
@@ -1882,6 +1902,7 @@ export class AnalyzerService {
                 fatalErrorOccurred: false,
                 configParseErrorOccurred: true,
                 elapsedTime: 0,
+                reason: 'analysis',
             });
         }
     }

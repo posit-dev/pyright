@@ -117,6 +117,7 @@ export interface TypeSameOptions {
     ignoreTypeFlags?: boolean;
     ignoreConditions?: boolean;
     ignoreTypedDictNarrowEntries?: boolean;
+    honorTypeForm?: boolean;
     treatAnySameAsUnknown?: boolean;
 }
 
@@ -168,6 +169,10 @@ export interface TypeBaseProps {
     // value expression such as UnionType, Literal, or Required.
     specialForm: ClassType | undefined;
 
+    // Used for "type form" objects, the evaluated form
+    // of a type expression in a value expression context.
+    typeForm: Type | undefined;
+
     // Used only for type aliases
     typeAliasInfo: TypeAliasInfo | undefined;
 
@@ -214,11 +219,16 @@ export namespace TypeBase {
             type.props = {
                 instantiableDepth: undefined,
                 specialForm: undefined,
+                typeForm: undefined,
                 typeAliasInfo: undefined,
                 condition: undefined,
             };
         }
         return type.props;
+    }
+
+    export function getInstantiableDepth(type: TypeBase<any>) {
+        return type.props?.instantiableDepth ?? 0;
     }
 
     export function setSpecialForm(type: TypeBase<any>, specialForm: ClassType | undefined) {
@@ -231,6 +241,10 @@ export namespace TypeBase {
 
     export function setTypeAliasInfo(type: TypeBase<any>, typeAliasInfo: TypeAliasInfo | undefined) {
         TypeBase.addProps(type).typeAliasInfo = typeAliasInfo;
+    }
+
+    export function setTypeForm(type: TypeBase<any>, typeForm: Type | undefined) {
+        TypeBase.addProps(type).typeForm = typeForm;
     }
 
     export function setCondition(type: TypeBase<any>, condition: TypeCondition[] | undefined) {
@@ -259,6 +273,11 @@ export namespace TypeBase {
         assert(TypeBase.isInstantiable(type));
 
         const newInstance = TypeBase.cloneType(type);
+
+        // Remove type form information from the type.
+        if (newInstance.props?.typeForm) {
+            TypeBase.setTypeForm(newInstance, undefined);
+        }
 
         const depth = newInstance.props?.instantiableDepth;
         if (depth === undefined) {
@@ -299,6 +318,11 @@ export namespace TypeBase {
             TypeBase.setTypeAliasInfo(newInstance, undefined);
         }
 
+        // Remove type form information from the type.
+        if (newInstance.props?.typeForm) {
+            TypeBase.setTypeForm(newInstance, undefined);
+        }
+
         // Should we cache it for next time?
         if (cache) {
             if (!type.cached) {
@@ -311,10 +335,18 @@ export namespace TypeBase {
         return newInstance;
     }
 
-    export function cloneForTypeAlias(type: Type, aliasInfo: TypeAliasInfo): Type {
+    export function cloneForTypeAlias<T extends Type>(type: T, aliasInfo: TypeAliasInfo): T {
         const typeClone = cloneType(type);
 
         TypeBase.setTypeAliasInfo(typeClone, aliasInfo);
+
+        return typeClone;
+    }
+
+    export function cloneWithTypeForm<T extends Type>(type: T, typeForm: Type | undefined): T {
+        const typeClone = cloneType(type);
+
+        TypeBase.setTypeForm(typeClone, typeForm);
 
         return typeClone;
     }
@@ -606,10 +638,6 @@ export const enum ClassTypeFlags {
     // Class is declared within a type stub file.
     DefinedInStub = 1 << 18,
 
-    // Class does not allow writing or deleting its instance variables
-    // through a member access. Used with named tuples.
-    ReadOnlyInstanceVariables = 1 << 19,
-
     // Decorated with @type_check_only.
     TypeCheckOnly = 1 << 20,
 
@@ -659,6 +687,7 @@ interface ClassDetailsShared {
     docString?: string | undefined;
     dataClassEntries?: DataClassEntry[] | undefined;
     dataClassBehaviors?: DataClassBehaviors | undefined;
+    namedTupleEntries?: Set<string> | undefined;
     typedDictEntries?: TypedDictEntries | undefined;
     localSlotsNames?: string[];
 
@@ -1224,10 +1253,6 @@ export namespace ClassType {
         return !!(classType.shared.flags & ClassTypeFlags.TupleClass);
     }
 
-    export function isReadOnlyInstanceVariables(classType: ClassType) {
-        return !!(classType.shared.flags & ClassTypeFlags.ReadOnlyInstanceVariables);
-    }
-
     export function getTypeParams(classType: ClassType) {
         return classType.shared.typeParams;
     }
@@ -1262,10 +1287,27 @@ export namespace ClassType {
         );
     }
 
+    export function hasNamedTupleEntry(classType: ClassType, name: string): boolean {
+        if (!classType.shared.namedTupleEntries) {
+            return false;
+        }
+
+        return classType.shared.namedTupleEntries.has(name);
+    }
+
     // Same as isTypeSame except that it doesn't compare type arguments.
     export function isSameGenericClass(classType: ClassType, type2: ClassType, recursionCount = 0) {
         if (!classType.priv.isTypedDictPartial !== !type2.priv.isTypedDictPartial) {
             return false;
+        }
+
+        // Handle type[] specially.
+        if (TypeBase.getInstantiableDepth(classType) > 0) {
+            return TypeBase.isInstantiable(type2) || ClassType.isBuiltIn(type2, 'type');
+        }
+
+        if (TypeBase.getInstantiableDepth(type2) > 0) {
+            return TypeBase.isInstantiable(classType) || ClassType.isBuiltIn(classType, 'type');
         }
 
         const class1Details = classType.shared;
@@ -2284,6 +2326,10 @@ export namespace OverloadedType {
             OverloadedType.addOverload(newType, overload);
         });
 
+        if (implementation && isFunction(implementation)) {
+            implementation.priv.overloaded = newType;
+        }
+
         return newType;
     }
 
@@ -2338,8 +2384,8 @@ export namespace NeverType {
     }
 
     export function convertToInstance(type: NeverType): NeverType {
-        // Remove the "special form" if present. Otherwise return the existing type.
-        if (!type.props?.specialForm) {
+        // Remove the specialForm or typeForm if present. Otherwise return the existing type.
+        if (!type.props?.specialForm && !type.props?.typeForm) {
             return type;
         }
 
@@ -2586,6 +2632,7 @@ export namespace UnionType {
     export function containsType(
         unionType: UnionType,
         subtype: Type,
+        options: TypeSameOptions = {},
         exclusionSet?: Set<number>,
         recursionCount = 0
     ): boolean {
@@ -2611,7 +2658,7 @@ export namespace UnionType {
                 return false;
             }
 
-            return isTypeSame(t, subtype, {}, recursionCount);
+            return isTypeSame(t, subtype, options, recursionCount);
         });
 
         if (foundIndex < 0) {
@@ -2821,7 +2868,11 @@ export namespace TypeVarType {
         newInstance.shared.name = name;
 
         if (newInstance.priv.scopeId) {
-            newInstance.priv.nameWithScope = makeNameWithScope(name, newInstance.priv.scopeId);
+            newInstance.priv.nameWithScope = makeNameWithScope(
+                name,
+                newInstance.priv.scopeId,
+                newInstance.priv.scopeName ?? ''
+            );
         }
 
         return newInstance;
@@ -2834,7 +2885,7 @@ export namespace TypeVarType {
         scopeType: TypeVarScopeType | undefined
     ): TypeVarType {
         const newInstance = TypeBase.cloneType(type);
-        newInstance.priv.nameWithScope = makeNameWithScope(type.shared.name, scopeId);
+        newInstance.priv.nameWithScope = makeNameWithScope(type.shared.name, scopeId, scopeName ?? '');
         newInstance.priv.scopeId = scopeId;
         newInstance.priv.scopeName = scopeName;
         newInstance.priv.scopeType = scopeType;
@@ -2924,8 +2975,12 @@ export namespace TypeVarType {
         return newInstance;
     }
 
-    export function makeNameWithScope(name: string, scopeId: string) {
-        return `${name}.${scopeId}`;
+    export function makeNameWithScope(name: string, scopeId: string, scopeName: string) {
+        // We include the scopeName here even though it's normally already part
+        // of the scopeId. There are cases where it can diverge, specifically
+        // in scenarios involving higher-order functions that return generic
+        // callable types. See adjustCallableReturnType for details.
+        return `${name}.${scopeId}.${scopeName}`;
     }
 
     // When solving the TypeVars for a callable, we need to distinguish between
@@ -3196,6 +3251,23 @@ export function isTypeSame(type1: Type, type2: Type, options: TypeSameOptions = 
     }
     recursionCount++;
 
+    if (options.honorTypeForm) {
+        const typeForm1 = type1.props?.typeForm;
+        const typeForm2 = type2.props?.typeForm;
+
+        if (typeForm1) {
+            if (!typeForm2) {
+                return false;
+            }
+
+            if (!isTypeSame(typeForm1, typeForm2, options, recursionCount)) {
+                return false;
+            }
+        } else if (typeForm2) {
+            return false;
+        }
+    }
+
     switch (type1.category) {
         case TypeCategory.Class: {
             const classType2 = type2 as ClassType;
@@ -3384,7 +3456,7 @@ export function isTypeSame(type1: Type, type2: Type, options: TypeSameOptions = 
             return (
                 findSubtype(
                     type1,
-                    (subtype) => !UnionType.containsType(unionType2, subtype, exclusionSet, recursionCount)
+                    (subtype) => !UnionType.containsType(unionType2, subtype, options, exclusionSet, recursionCount)
                 ) === undefined
             );
         }
@@ -3751,7 +3823,7 @@ function _addTypeIfUnique(unionType: UnionType, typeToAdd: UnionableType, elideR
         const type = unionType.priv.subtypes[i];
 
         // Does this type already exist in the types array?
-        if (isTypeSame(type, typeToAdd)) {
+        if (isTypeSame(type, typeToAdd, { honorTypeForm: true })) {
             return;
         }
 
@@ -3762,7 +3834,7 @@ function _addTypeIfUnique(unionType: UnionType, typeToAdd: UnionableType, elideR
         // we can hit recursive cases (where a pseudo-generic class is
         // parameterized with its own class) ad infinitum.
         if (isPseudoGeneric) {
-            if (isTypeSame(type, typeToAdd, { ignorePseudoGeneric: true })) {
+            if (isTypeSame(type, typeToAdd, { ignorePseudoGeneric: true, honorTypeForm: true })) {
                 unionType.priv.subtypes[i] = ClassType.specialize(
                     typeToAdd,
                     typeToAdd.shared.typeParams.map(() => UnknownType.create())
