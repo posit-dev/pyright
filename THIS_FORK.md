@@ -117,3 +117,5 @@ If there are any problems at this point, then you may need to make some fixes. I
 - Change any instances of `import { ... } from './common/realFileSystem'` to  `import { ... } from './common/testFileSystemShim'`.
 
 It is possible that there will be more substantive changes which require deeper code modifications.
+
+Sometimes configuration files (for example, tsconfig.json) will have changed in `pyright-internal`, and the corresponding file in `browser-pyright` will need to be updated.
