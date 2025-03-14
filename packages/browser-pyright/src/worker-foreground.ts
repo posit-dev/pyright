@@ -162,11 +162,11 @@ class BrowserPyrightServer extends PyrightServer {
 
     // This is invoked after the constructor, when the 'initialize' message is
     // received from the host.
-    protected override initialize(
+    protected override async initialize(
         params: InitializeParams,
         supportedCommands: string[],
         supportedCodeActions: string[]
-    ): InitializeResult {
+    ): Promise<InitializeResult> {
         // Initialize files in the foreground thread.
         this.initFiles(params.initializationOptions.files);
         // Store this.initialFiles so that the files can be used by
@@ -221,11 +221,13 @@ class BrowserBackgroundAnalysis extends BackgroundAnalysisBase {
     constructor(serviceProvider: ServiceProvider) {
         super(serviceProvider.console());
 
+        const index = ++BrowserBackgroundAnalysis._workerIndex;
         const initialData: InitializationData = {
             rootUri: '/',
+            serviceId: index.toString(),
             cancellationFolderName: undefined,
             runner: undefined,
-            workerIndex: ++BrowserBackgroundAnalysis._workerIndex,
+            workerIndex: index,
         };
 
         // This will load this same .js file in a background thread.
