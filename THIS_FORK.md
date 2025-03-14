@@ -86,7 +86,12 @@ Then merge in the most recent tag. If the tag is `1.1.365`, you would run:
 git merge 1.1.365
 ```
 
-Hopefully this will work without any merge conflicts. If there are merge conflicts, resolve them.
+Hopefully this will work without any merge conflicts. If there are merge conflicts, resolve them, then add those files and continue the merge commit:
+
+```bash
+git add XXX
+git merge --continue
+```
 
 Next, update `browser-pyright/packages.json` so that it has the same version number, like 1.1.365.
 
@@ -115,3 +120,5 @@ If there are any problems at this point, then you may need to make some fixes. I
 It is possible that there will be more substantive changes which require deeper code modifications.
 
 Sometimes configuration files (for example, tsconfig.json) will have changed in `pyright-internal`, and the corresponding file in `browser-pyright` will need to be updated.
+
+After all this is done, commit the changes.
