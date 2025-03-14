@@ -1,5 +1,5 @@
 import { BackgroundAnalysisRunner } from 'pyright-internal/backgroundAnalysis';
-import type { AnalysisRequest } from 'pyright-internal/backgroundAnalysisBase';
+import type { BackgroundRequest } from 'pyright-internal/backgroundAnalysisBase';
 import { deserialize } from 'pyright-internal/backgroundThreadBase';
 import { NoAccessHost, type Host } from 'pyright-internal/common/host';
 import { ServiceProvider } from 'pyright-internal/common/serviceProvider';
@@ -39,7 +39,7 @@ class BrowserBackgroundAnalysisRunner extends BackgroundAnalysisRunner {
         return new NoAccessHost();
     }
 
-    protected override onMessage(msg: AnalysisRequestExtended | AnalysisRequest) {
+    protected override onMessage(msg: BackgroundRequestExtended | BackgroundRequest) {
         switch (msg.requestType) {
             case 'initialFiles': {
                 const data = deserialize(msg.data);
@@ -67,10 +67,10 @@ class BrowserBackgroundAnalysisRunner extends BackgroundAnalysisRunner {
     }
 }
 
-export type AnalysisRequestKindExtended = 'initialFiles' | 'createFile' | 'deleteFile';
+export type BackgroundRequestKindExtended = 'initialFiles' | 'createFile' | 'deleteFile';
 
-export interface AnalysisRequestExtended {
-    requestType: AnalysisRequestKindExtended;
+export interface BackgroundRequestExtended {
+    requestType: BackgroundRequestKindExtended;
     data: string | null;
     port?: MessagePort | undefined;
     sharedUsageBuffer?: SharedArrayBuffer;

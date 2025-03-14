@@ -6,14 +6,14 @@ import {
     BrowserMessageReader,
     BrowserMessageWriter,
     createConnection,
-    type InitializeParams,
-    type InitializeResult,
     type CreateFile,
     type DeleteFile,
+    type InitializeParams,
+    type InitializeResult,
 } from 'vscode-languageserver/browser';
 
 import { InvalidatedReason } from 'pyright-internal/analyzer/backgroundAnalysisProgram';
-import { AnalysisRequest, BackgroundAnalysisBase } from 'pyright-internal/backgroundAnalysisBase';
+import { BackgroundAnalysisBase, BackgroundRequest } from 'pyright-internal/backgroundAnalysisBase';
 import { serialize, type InitializationData } from 'pyright-internal/backgroundThreadBase';
 import type { FileSystem } from 'pyright-internal/common/fileSystem';
 import type { FullAccessHost } from 'pyright-internal/common/fullAccessHost';
@@ -22,9 +22,9 @@ import type { ServiceProvider } from 'pyright-internal/common/serviceProvider';
 import { PyrightServer } from 'pyright-internal/server';
 import { Worker } from 'pyright-internal/worker_threads_shim';
 import type { Connection } from 'vscode-languageserver/browser';
-import { AnalysisRequestExtended } from './worker-background';
-import { BACKGROUND_THREAD_NAME } from './worker';
 import * as FsUtils from './fs-utils';
+import { BACKGROUND_THREAD_NAME } from './worker';
+import { BackgroundRequestExtended } from './worker-background';
 
 export function mainThreadStart(): void {
     // TODO: Will we want to allow more threads?
@@ -289,7 +289,7 @@ class BrowserBackgroundAnalysis extends BackgroundAnalysisBase {
     // Send a message to the background thread. This override function simply
     // wraps the superclass's method but makes TypeScript happy by allowing
     // AnalysisRequestExtended.
-    protected override enqueueRequest(request: AnalysisRequestExtended | AnalysisRequest) {
-        super.enqueueRequest(request as AnalysisRequest);
+    protected override enqueueRequest(request: BackgroundRequestExtended | BackgroundRequest) {
+        super.enqueueRequest(request as BackgroundRequest);
     }
 }
