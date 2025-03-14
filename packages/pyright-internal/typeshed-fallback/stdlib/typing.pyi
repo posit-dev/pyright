@@ -133,6 +133,8 @@ if sys.version_info >= (3, 13):
 
 Any = object()
 
+class _Final: ...
+
 def final(f: _T) -> _T: ...
 @final
 class TypeVar:
@@ -191,7 +193,7 @@ _promote = object()
 
 # N.B. Keep this definition in sync with typing_extensions._SpecialForm
 @final
-class _SpecialForm:
+class _SpecialForm(_Final):
     def __getitem__(self, parameters: Any) -> object: ...
     if sys.version_info >= (3, 10):
         def __or__(self, other: Any) -> _SpecialForm: ...
@@ -211,8 +213,7 @@ Tuple: _SpecialForm
 Final: _SpecialForm
 
 Literal: _SpecialForm
-# TypedDict is a (non-subscriptable) special form.
-TypedDict: object
+TypedDict: _SpecialForm
 
 if sys.version_info >= (3, 11):
     Self: _SpecialForm
@@ -462,7 +463,11 @@ class Generator(Iterator[_YieldT_co], Generic[_YieldT_co, _SendT_contra, _Return
     @overload
     @abstractmethod
     def throw(self, typ: BaseException, val: None = None, tb: TracebackType | None = None, /) -> _YieldT_co: ...
-    def close(self) -> None: ...
+    if sys.version_info >= (3, 13):
+        def close(self) -> _ReturnT_co | None: ...
+    else:
+        def close(self) -> None: ...
+
     def __iter__(self) -> Generator[_YieldT_co, _SendT_contra, _ReturnT_co]: ...
     @property
     def gi_code(self) -> CodeType: ...
@@ -540,7 +545,7 @@ class AsyncIterator(AsyncIterable[_T_co], Protocol[_T_co]):
     def __aiter__(self) -> AsyncIterator[_T_co]: ...
 
 class AsyncGenerator(AsyncIterator[_YieldT_co], Generic[_YieldT_co, _SendT_contra]):
-    def __anext__(self) -> Awaitable[_YieldT_co]: ...
+    def __anext__(self) -> Coroutine[Any, Any, _YieldT_co]: ...
     @abstractmethod
     def asend(self, value: _SendT_contra, /) -> Coroutine[Any, Any, _YieldT_co]: ...
     @overload
@@ -575,7 +580,7 @@ class Collection(Iterable[_T_co], Container[_T_co], Protocol[_T_co]):
     @abstractmethod
     def __len__(self) -> int: ...
 
-class Sequence(Collection[_T_co], Reversible[_T_co]):
+class Sequence(Reversible[_T_co], Collection[_T_co]):
     @overload
     @abstractmethod
     def __getitem__(self, index: int) -> _T_co: ...
@@ -659,7 +664,6 @@ class ItemsView(MappingView, AbstractSet[tuple[_KT_co, _VT_co]], Generic[_KT_co,
     def __rand__(self, other: Iterable[_T]) -> set[_T]: ...
     def __contains__(self, item: object) -> bool: ...
     def __iter__(self) -> Iterator[tuple[_KT_co, _VT_co]]: ...
-    def __reversed__(self) -> Iterator[tuple[_KT_co, _VT_co]]: ...
     def __or__(self, other: Iterable[_T]) -> set[tuple[_KT_co, _VT_co] | _T]: ...
     def __ror__(self, other: Iterable[_T]) -> set[tuple[_KT_co, _VT_co] | _T]: ...
     def __sub__(self, other: Iterable[Any]) -> set[tuple[_KT_co, _VT_co]]: ...
@@ -673,7 +677,6 @@ class KeysView(MappingView, AbstractSet[_KT_co]):
     def __rand__(self, other: Iterable[_T]) -> set[_T]: ...
     def __contains__(self, key: object) -> bool: ...
     def __iter__(self) -> Iterator[_KT_co]: ...
-    def __reversed__(self) -> Iterator[_KT_co]: ...
     def __or__(self, other: Iterable[_T]) -> set[_KT_co | _T]: ...
     def __ror__(self, other: Iterable[_T]) -> set[_KT_co | _T]: ...
     def __sub__(self, other: Iterable[Any]) -> set[_KT_co]: ...
@@ -685,7 +688,6 @@ class ValuesView(MappingView, Collection[_VT_co]):
     def __init__(self, mapping: Mapping[Any, _VT_co]) -> None: ...  # undocumented
     def __contains__(self, value: object) -> bool: ...
     def __iter__(self) -> Iterator[_VT_co]: ...
-    def __reversed__(self) -> Iterator[_VT_co]: ...
 
 class Mapping(Collection[_KT], Generic[_KT, _VT_co]):
     # TODO: We wish the key type could also be covariant, but that doesn't work,
@@ -760,7 +762,7 @@ TYPE_CHECKING: bool
 # In stubs, the arguments of the IO class are marked as positional-only.
 # This differs from runtime, but better reflects the fact that in reality
 # classes deriving from IO use different names for the arguments.
-class IO(Iterator[AnyStr]):
+class IO(Generic[AnyStr]):
     # At runtime these are all abstract properties,
     # but making them abstract in the stub is hugely disruptive, for not much gain.
     # See #8726
@@ -861,13 +863,13 @@ if sys.version_info >= (3, 9):
     def get_type_hints(
         obj: _get_type_hints_obj_allowed_types,
         globalns: dict[str, Any] | None = None,
-        localns: dict[str, Any] | None = None,
+        localns: Mapping[str, Any] | None = None,
         include_extras: bool = False,
     ) -> dict[str, Any]: ...
 
 else:
     def get_type_hints(
-        obj: _get_type_hints_obj_allowed_types, globalns: dict[str, Any] | None = None, localns: dict[str, Any] | None = None
+        obj: _get_type_hints_obj_allowed_types, globalns: dict[str, Any] | None = None, localns: Mapping[str, Any] | None = None
     ) -> dict[str, Any]: ...
 
 def get_args(tp: Any) -> tuple[Any, ...]: ...
@@ -973,7 +975,7 @@ class _TypedDict(Mapping[str, object], metaclass=ABCMeta):
         def __ior__(self, value: typing_extensions.Self, /) -> typing_extensions.Self: ...  # type: ignore[misc]
 
 @final
-class ForwardRef:
+class ForwardRef(_Final):
     __forward_arg__: str
     __forward_code__: CodeType
     __forward_evaluated__: bool
@@ -995,13 +997,13 @@ class ForwardRef:
             "that references a PEP 695 type parameter. It will be disallowed in Python 3.15."
         )
         def _evaluate(
-            self, globalns: dict[str, Any] | None, localns: dict[str, Any] | None, *, recursive_guard: frozenset[str]
+            self, globalns: dict[str, Any] | None, localns: Mapping[str, Any] | None, *, recursive_guard: frozenset[str]
         ) -> Any | None: ...
         @overload
         def _evaluate(
             self,
             globalns: dict[str, Any] | None,
-            localns: dict[str, Any] | None,
+            localns: Mapping[str, Any] | None,
             type_params: tuple[TypeVar | ParamSpec | TypeVarTuple, ...],
             *,
             recursive_guard: frozenset[str],
@@ -1010,17 +1012,17 @@ class ForwardRef:
         def _evaluate(
             self,
             globalns: dict[str, Any] | None,
-            localns: dict[str, Any] | None,
+            localns: Mapping[str, Any] | None,
             type_params: tuple[TypeVar | ParamSpec | TypeVarTuple, ...] | None = None,
             *,
             recursive_guard: frozenset[str],
         ) -> Any | None: ...
     elif sys.version_info >= (3, 9):
         def _evaluate(
-            self, globalns: dict[str, Any] | None, localns: dict[str, Any] | None, recursive_guard: frozenset[str]
+            self, globalns: dict[str, Any] | None, localns: Mapping[str, Any] | None, recursive_guard: frozenset[str]
         ) -> Any | None: ...
     else:
-        def _evaluate(self, globalns: dict[str, Any] | None, localns: dict[str, Any] | None) -> Any | None: ...
+        def _evaluate(self, globalns: dict[str, Any] | None, localns: Mapping[str, Any] | None) -> Any | None: ...
 
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...

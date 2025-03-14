@@ -1,12 +1,17 @@
 import _tkinter
 import sys
-from _typeshed import Incomplete, StrEnum, StrOrBytesPath
+from _typeshed import Incomplete, MaybeNone, StrOrBytesPath
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from tkinter.constants import *
 from tkinter.font import _FontDescription
 from types import TracebackType
-from typing import Any, Generic, Literal, NamedTuple, TypedDict, TypeVar, overload, type_check_only
+from typing import Any, Generic, Literal, NamedTuple, Protocol, TypedDict, TypeVar, overload, type_check_only
 from typing_extensions import TypeAlias, TypeVarTuple, Unpack, deprecated
+
+if sys.version_info >= (3, 11):
+    from enum import StrEnum
+else:
+    from enum import Enum
 
 if sys.version_info >= (3, 9):
     __all__ = [
@@ -186,53 +191,99 @@ _XYScrollCommand: TypeAlias = str | Callable[[float, float], object]
 _TakeFocusValue: TypeAlias = bool | Literal[0, 1, ""] | Callable[[str], bool | None]  # -takefocus in manual page named 'options'
 
 if sys.version_info >= (3, 11):
-    class _VersionInfoType(NamedTuple):
+    @type_check_only
+    class _VersionInfoTypeBase(NamedTuple):
         major: int
         minor: int
         micro: int
         releaselevel: str
         serial: int
 
-class EventType(StrEnum):
-    Activate = "36"
-    ButtonPress = "4"
-    Button = ButtonPress
-    ButtonRelease = "5"
-    Circulate = "26"
-    CirculateRequest = "27"
-    ClientMessage = "33"
-    Colormap = "32"
-    Configure = "22"
-    ConfigureRequest = "23"
-    Create = "16"
-    Deactivate = "37"
-    Destroy = "17"
-    Enter = "7"
-    Expose = "12"
-    FocusIn = "9"
-    FocusOut = "10"
-    GraphicsExpose = "13"
-    Gravity = "24"
-    KeyPress = "2"
-    Key = "2"
-    KeyRelease = "3"
-    Keymap = "11"
-    Leave = "8"
-    Map = "19"
-    MapRequest = "20"
-    Mapping = "34"
-    Motion = "6"
-    MouseWheel = "38"
-    NoExpose = "14"
-    Property = "28"
-    Reparent = "21"
-    ResizeRequest = "25"
-    Selection = "31"
-    SelectionClear = "29"
-    SelectionRequest = "30"
-    Unmap = "18"
-    VirtualEvent = "35"
-    Visibility = "15"
+    class _VersionInfoType(_VersionInfoTypeBase): ...
+
+if sys.version_info >= (3, 11):
+    class EventType(StrEnum):
+        Activate = "36"
+        ButtonPress = "4"
+        Button = ButtonPress
+        ButtonRelease = "5"
+        Circulate = "26"
+        CirculateRequest = "27"
+        ClientMessage = "33"
+        Colormap = "32"
+        Configure = "22"
+        ConfigureRequest = "23"
+        Create = "16"
+        Deactivate = "37"
+        Destroy = "17"
+        Enter = "7"
+        Expose = "12"
+        FocusIn = "9"
+        FocusOut = "10"
+        GraphicsExpose = "13"
+        Gravity = "24"
+        KeyPress = "2"
+        Key = "2"
+        KeyRelease = "3"
+        Keymap = "11"
+        Leave = "8"
+        Map = "19"
+        MapRequest = "20"
+        Mapping = "34"
+        Motion = "6"
+        MouseWheel = "38"
+        NoExpose = "14"
+        Property = "28"
+        Reparent = "21"
+        ResizeRequest = "25"
+        Selection = "31"
+        SelectionClear = "29"
+        SelectionRequest = "30"
+        Unmap = "18"
+        VirtualEvent = "35"
+        Visibility = "15"
+
+else:
+    class EventType(str, Enum):
+        Activate = "36"
+        ButtonPress = "4"
+        Button = ButtonPress
+        ButtonRelease = "5"
+        Circulate = "26"
+        CirculateRequest = "27"
+        ClientMessage = "33"
+        Colormap = "32"
+        Configure = "22"
+        ConfigureRequest = "23"
+        Create = "16"
+        Deactivate = "37"
+        Destroy = "17"
+        Enter = "7"
+        Expose = "12"
+        FocusIn = "9"
+        FocusOut = "10"
+        GraphicsExpose = "13"
+        Gravity = "24"
+        KeyPress = "2"
+        Key = "2"
+        KeyRelease = "3"
+        Keymap = "11"
+        Leave = "8"
+        Map = "19"
+        MapRequest = "20"
+        Mapping = "34"
+        Motion = "6"
+        MouseWheel = "38"
+        NoExpose = "14"
+        Property = "28"
+        Reparent = "21"
+        ResizeRequest = "25"
+        Selection = "31"
+        SelectionClear = "29"
+        SelectionRequest = "30"
+        Unmap = "18"
+        VirtualEvent = "35"
+        Visibility = "15"
 
 _W = TypeVar("_W", bound=Misc)
 # Events considered covariant because you should never assign to event.widget.
@@ -509,7 +560,7 @@ class Misc:
         pad: _ScreenUnits = ...,
         uniform: str = ...,
         weight: int = ...,
-    ) -> _GridIndexInfo | Any: ...  # can be None but annoying to check
+    ) -> _GridIndexInfo | MaybeNone: ...  # can be None but annoying to check
     def grid_rowconfigure(
         self,
         index: int | str | list[int] | tuple[int, ...],
@@ -519,7 +570,7 @@ class Misc:
         pad: _ScreenUnits = ...,
         uniform: str = ...,
         weight: int = ...,
-    ) -> _GridIndexInfo | Any: ...  # can be None but annoying to check
+    ) -> _GridIndexInfo | MaybeNone: ...  # can be None but annoying to check
     columnconfigure = grid_columnconfigure
     rowconfigure = grid_rowconfigure
     def grid_location(self, x: _ScreenUnits, y: _ScreenUnits) -> tuple[int, int]: ...
@@ -576,7 +627,8 @@ class Misc:
     def __getitem__(self, key: str) -> Any: ...
     def cget(self, key: str) -> Any: ...
     def configure(self, cnf: Any = None) -> Any: ...
-    # TODO: config is an alias of configure, but adding that here creates lots of mypy errors
+    # TODO: config is an alias of configure, but adding that here creates
+    # conflict with the type of config in the subclasses. See #13149
 
 class CallWrapper:
     func: Incomplete
@@ -3025,27 +3077,133 @@ class Text(Widget, XView, YView):
     config = configure
     def bbox(self, index: _TextIndex) -> tuple[int, int, int, int] | None: ...  # type: ignore[override]
     def compare(self, index1: _TextIndex, op: Literal["<", "<=", "==", ">=", ">", "!="], index2: _TextIndex) -> bool: ...
-    @overload
-    def count(self, index1: _TextIndex, index2: _TextIndex) -> tuple[int] | None: ...
-    @overload
-    def count(self, index1: _TextIndex, index2: _TextIndex, arg: _WhatToCount | Literal["update"], /) -> tuple[int] | None: ...
-    @overload
-    def count(self, index1: _TextIndex, index2: _TextIndex, arg1: Literal["update"], arg2: _WhatToCount, /) -> int | None: ...
-    @overload
-    def count(self, index1: _TextIndex, index2: _TextIndex, arg1: _WhatToCount, arg2: Literal["update"], /) -> int | None: ...
-    @overload
-    def count(self, index1: _TextIndex, index2: _TextIndex, arg1: _WhatToCount, arg2: _WhatToCount, /) -> tuple[int, int]: ...
-    @overload
-    def count(
-        self,
-        index1: _TextIndex,
-        index2: _TextIndex,
-        arg1: _WhatToCount | Literal["update"],
-        arg2: _WhatToCount | Literal["update"],
-        arg3: _WhatToCount | Literal["update"],
-        /,
-        *args: _WhatToCount | Literal["update"],
-    ) -> tuple[int, ...]: ...
+    if sys.version_info >= (3, 13):
+        @overload
+        def count(self, index1: _TextIndex, index2: _TextIndex, *, return_ints: Literal[True]) -> int: ...
+        @overload
+        def count(
+            self, index1: _TextIndex, index2: _TextIndex, arg: _WhatToCount | Literal["update"], /, *, return_ints: Literal[True]
+        ) -> int: ...
+        @overload
+        def count(
+            self,
+            index1: _TextIndex,
+            index2: _TextIndex,
+            arg1: Literal["update"],
+            arg2: _WhatToCount,
+            /,
+            *,
+            return_ints: Literal[True],
+        ) -> int: ...
+        @overload
+        def count(
+            self,
+            index1: _TextIndex,
+            index2: _TextIndex,
+            arg1: _WhatToCount,
+            arg2: Literal["update"],
+            /,
+            *,
+            return_ints: Literal[True],
+        ) -> int: ...
+        @overload
+        def count(
+            self, index1: _TextIndex, index2: _TextIndex, arg1: _WhatToCount, arg2: _WhatToCount, /, *, return_ints: Literal[True]
+        ) -> tuple[int, int]: ...
+        @overload
+        def count(
+            self,
+            index1: _TextIndex,
+            index2: _TextIndex,
+            arg1: _WhatToCount | Literal["update"],
+            arg2: _WhatToCount | Literal["update"],
+            arg3: _WhatToCount | Literal["update"],
+            /,
+            *args: _WhatToCount | Literal["update"],
+            return_ints: Literal[True],
+        ) -> tuple[int, ...]: ...
+        @overload
+        def count(self, index1: _TextIndex, index2: _TextIndex, *, return_ints: Literal[False] = False) -> tuple[int] | None: ...
+        @overload
+        def count(
+            self,
+            index1: _TextIndex,
+            index2: _TextIndex,
+            arg: _WhatToCount | Literal["update"],
+            /,
+            *,
+            return_ints: Literal[False] = False,
+        ) -> tuple[int] | None: ...
+        @overload
+        def count(
+            self,
+            index1: _TextIndex,
+            index2: _TextIndex,
+            arg1: Literal["update"],
+            arg2: _WhatToCount,
+            /,
+            *,
+            return_ints: Literal[False] = False,
+        ) -> int | None: ...
+        @overload
+        def count(
+            self,
+            index1: _TextIndex,
+            index2: _TextIndex,
+            arg1: _WhatToCount,
+            arg2: Literal["update"],
+            /,
+            *,
+            return_ints: Literal[False] = False,
+        ) -> int | None: ...
+        @overload
+        def count(
+            self,
+            index1: _TextIndex,
+            index2: _TextIndex,
+            arg1: _WhatToCount,
+            arg2: _WhatToCount,
+            /,
+            *,
+            return_ints: Literal[False] = False,
+        ) -> tuple[int, int]: ...
+        @overload
+        def count(
+            self,
+            index1: _TextIndex,
+            index2: _TextIndex,
+            arg1: _WhatToCount | Literal["update"],
+            arg2: _WhatToCount | Literal["update"],
+            arg3: _WhatToCount | Literal["update"],
+            /,
+            *args: _WhatToCount | Literal["update"],
+            return_ints: Literal[False] = False,
+        ) -> tuple[int, ...]: ...
+    else:
+        @overload
+        def count(self, index1: _TextIndex, index2: _TextIndex) -> tuple[int] | None: ...
+        @overload
+        def count(
+            self, index1: _TextIndex, index2: _TextIndex, arg: _WhatToCount | Literal["update"], /
+        ) -> tuple[int] | None: ...
+        @overload
+        def count(self, index1: _TextIndex, index2: _TextIndex, arg1: Literal["update"], arg2: _WhatToCount, /) -> int | None: ...
+        @overload
+        def count(self, index1: _TextIndex, index2: _TextIndex, arg1: _WhatToCount, arg2: Literal["update"], /) -> int | None: ...
+        @overload
+        def count(self, index1: _TextIndex, index2: _TextIndex, arg1: _WhatToCount, arg2: _WhatToCount, /) -> tuple[int, int]: ...
+        @overload
+        def count(
+            self,
+            index1: _TextIndex,
+            index2: _TextIndex,
+            arg1: _WhatToCount | Literal["update"],
+            arg2: _WhatToCount | Literal["update"],
+            arg3: _WhatToCount | Literal["update"],
+            /,
+            *args: _WhatToCount | Literal["update"],
+        ) -> tuple[int, ...]: ...
+
     @overload
     def debug(self, boolean: None = None) -> bool: ...
     @overload
@@ -3297,11 +3455,14 @@ class OptionMenu(Menubutton):
     # configure, config, cget are inherited from Menubutton
     # destroy and __getitem__ are overridden, signature does not change
 
-# Marker to indicate that it is a valid bitmap/photo image. PIL implements compatible versions
-# which don't share a class hierarchy. The actual API is a __str__() which returns a valid name,
-# not something that type checkers can detect.
+# This matches tkinter's image classes (PhotoImage and BitmapImage)
+# and PIL's tkinter-compatible class (PIL.ImageTk.PhotoImage),
+# but not a plain PIL image that isn't tkinter compatible.
+# The reason is that PIL has width and height attributes, not methods.
 @type_check_only
-class _Image: ...
+class _Image(Protocol):
+    def width(self) -> int: ...
+    def height(self) -> int: ...
 
 @type_check_only
 class _BitmapImageLike(_Image): ...
@@ -3320,9 +3481,7 @@ class Image(_Image):
     def __getitem__(self, key): ...
     configure: Incomplete
     config: Incomplete
-    def height(self) -> int: ...
     def type(self): ...
-    def width(self) -> int: ...
 
 class PhotoImage(Image, _PhotoImageLike):
     # This should be kept in sync with PIL.ImageTK.PhotoImage.__init__()

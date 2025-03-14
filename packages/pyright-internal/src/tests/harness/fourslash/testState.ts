@@ -38,7 +38,7 @@ import { Char } from '../../../common/charCodes';
 import { CommandLineOptions } from '../../../common/commandLineOptions';
 import { ConfigOptions, SignatureDisplayType } from '../../../common/configOptions';
 import { ConsoleInterface, ConsoleWithLogLevel, NullConsole } from '../../../common/console';
-import { Comparison, isNumber, isString, toBoolean } from '../../../common/core';
+import { Comparison, isNumber, isString } from '../../../common/core';
 import * as debug from '../../../common/debug';
 import { DiagnosticCategory } from '../../../common/diagnostic';
 import { PyrightDocStringService } from '../../../common/docStringService';
@@ -83,7 +83,6 @@ import { parseTestData } from './fourSlashParser';
 import {
     FourSlashData,
     FourSlashFile,
-    GlobalMetadataOptionNames,
     Marker,
     MetadataOptionNames,
     MultiMap,
@@ -109,7 +108,6 @@ export interface HostSpecificFeatures {
     importResolverFactory: ImportResolverFactory;
     backgroundAnalysisProgramFactory: BackgroundAnalysisProgramFactory;
 
-    runIndexer(workspace: Workspace, noStdLib: boolean, options?: string): void;
     getCodeActionsForPosition(
         workspace: Workspace,
         fileUri: Uri,
@@ -208,14 +206,6 @@ export class TestState {
             isInitialized: createInitStatus(),
             searchPathsToWatch: [],
         };
-
-        const indexer = toBoolean(testData.globalOptions[GlobalMetadataOptionNames.indexer]);
-        const indexerWithoutStdLib = toBoolean(testData.globalOptions[GlobalMetadataOptionNames.indexerWithoutStdLib]);
-        if (indexer || indexerWithoutStdLib) {
-            const indexerOptions = testData.globalOptions[GlobalMetadataOptionNames.indexerOptions];
-            configOptions.indexing = true;
-            this._hostSpecificFeatures.runIndexer(this.workspace, indexerWithoutStdLib, indexerOptions);
-        }
 
         if (!delayFileInitialization) {
             this.initializeFiles();
@@ -695,6 +685,18 @@ export class TestState {
         this.workspace.service.invalidateAndForceReanalysis(InvalidatedReason.Reanalyzed);
         this.analyze();
 
+        // calling `analyze` should have parse and bind all or open user files. make sure that's true at least for open files.
+        for (const info of this.program.getOpened()) {
+            if (!info.sourceFile.getModuleSymbolTable()) {
+                this.console.error(
+                    `Module symbol missing?: ${info.sourceFile.getUri()}, bound: ${!info.sourceFile.isBindingRequired}`
+                );
+
+                // Make sure it is bound.
+                this.program.getBoundSourceFile(info.sourceFile.getUri());
+            }
+        }
+
         // Local copy to use in capture.
         const serviceProvider = this.serviceProvider;
         for (const range of this.getRanges()) {
@@ -702,6 +704,13 @@ export class TestState {
             if (!map[name]) {
                 continue;
             }
+
+            const uri = Uri.file(range.fileName, this.serviceProvider);
+            const sourceFile = this.program.getSourceFile(uri);
+            if (!sourceFile) {
+                this.raiseError(`source file not found: ${range.fileName}`);
+            }
+            const diagnostics = sourceFile.getDiagnostics(this.configOptions) || [];
 
             const codeActions = await this._getCodeActions(range);
             if (verifyMode === 'exact') {
@@ -744,8 +753,17 @@ export class TestState {
                 if (verifyMode === 'excluded' && matches.length > 0) {
                     this.raiseError(`unexpected result: ${stringify(map[name])}`);
                 } else if (verifyMode !== 'excluded' && matches.length !== 1) {
+                    const uri = Uri.file('test2.py', this.serviceProvider);
+                    const sourceFile = this.program.getSourceFile(uri);
+                    const symbolsInTest2 = sourceFile
+                        ? ', symbols in test2.py: ' +
+                          Array.from(sourceFile.getModuleSymbolTable()?.keys() ?? []).join(',')
+                        : '';
+
                     this.raiseError(
-                        `doesn't contain expected result: ${stringify(expected)}, actual: ${stringify(codeActions)}`
+                        `doesn't contain expected result: ${stringify(expected)}, actual: ${stringify(
+                            codeActions
+                        )}, diagnostics: ${stringify(diagnostics)}${symbolsInTest2}`
                     );
                 }
             }
