@@ -92,11 +92,11 @@ Next, update `browser-pyright/packages.json` so that it has the same version num
 
 Also check if the versions of dependencies in `browser-pyright/packages.json` match the versions in `pyright-internal/packages.json`. If they don't, update them and then run `npm install`.
 
-Then copy the `packages-lock.json` from `pyright-internal` to `browser-pyright` and run `npm i`. This is necessary to avoid version mismatches -- if pyright-internal has a specific version of a package in the lockfile, we want to use that same version.
+Then copy the `package-lock.json` from `pyright-internal` to `browser-pyright` and run `npm i`. This is necessary to avoid version mismatches -- if pyright-internal has a specific version of a package in the lockfile, we want to use that same version.
 
 ```bash
 cd packages/browser-pyright
-cd ../pyright-internal/packages-lock.json .
+cp ../pyright-internal/package-lock.json .
 npm i
 ```
 
@@ -106,7 +106,6 @@ Now try to build pyright.
 # Starting in the packages/browser-pyright dir
 (cd ../.. && npm ci)
 (cd ../pyright-internal && npm ci)
-npm ci
 npm run build
 ```
 
