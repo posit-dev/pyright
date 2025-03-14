@@ -18,6 +18,7 @@ import { serialize, type InitializationData } from 'pyright-internal/backgroundT
 import type { FileSystem } from 'pyright-internal/common/fileSystem';
 import type { FullAccessHost } from 'pyright-internal/common/fullAccessHost';
 import { NoAccessHost } from 'pyright-internal/common/host';
+import { ServiceKeys } from 'pyright-internal/common/serviceKeys';
 import type { ServiceProvider } from 'pyright-internal/common/serviceProvider';
 import { PyrightServer } from 'pyright-internal/server';
 import { Worker } from 'pyright-internal/worker_threads_shim';
@@ -224,6 +225,7 @@ class BrowserBackgroundAnalysis extends BackgroundAnalysisBase {
         const index = ++BrowserBackgroundAnalysis._workerIndex;
         const initialData: InitializationData = {
             rootUri: '/',
+            tempFileName: serviceProvider.get(ServiceKeys.tempFile).tmpdir().getFilePath(),
             serviceId: index.toString(),
             cancellationFolderName: undefined,
             runner: undefined,

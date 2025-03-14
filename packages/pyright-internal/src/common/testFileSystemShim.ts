@@ -25,8 +25,13 @@ export function createFromRealFileSystem(
 }
 
 export class RealTempFile extends TestFileSystem {
-    constructor() {
+    constructor(name?: string) {
         super(false, { cwd: '/' });
+        // `name` isn't used in our implementation. In the `RealTempFile` class
+        // in realFileSystem.ts, that is used to determine whether or not to
+        // clean up the temp directory when disposed, but we don't have that
+        // issue since we're essentially creating a new virtual filesystem each
+        // time this class is instantiated.
     }
 }
 
