@@ -261,7 +261,12 @@ class BrowserBackgroundAnalysis extends BackgroundAnalysisBase {
             worker.webWorker.addEventListener('message', backgroundWorkerInitHandler);
         });
 
-        this.setup(worker);
+        // Call .setup() only after the background thread has started, because
+        // it will cause messages to be sent to the background thread and we
+        // don't want them to be sent before the background thread is ready.
+        this.initPromise.then(() => {
+            this.setup(worker);
+        });
 
         // Tell the cacheManager we have a worker that needs to share data.
         serviceProvider.cacheManager()?.addWorker(initialData.workerIndex, worker);
